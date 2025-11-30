@@ -1,0 +1,7 @@
+package ch.example.application.service;
+
+public class FraudDetectedException extends RuntimeException {
+    public FraudDetectedException(String message) {
+        super(message);
+    }
+}

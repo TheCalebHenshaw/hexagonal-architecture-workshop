@@ -1,0 +1,330 @@
+openapi: 3.0.4
+info:
+  title: Example Hexagonal Payment API - OpenAPI 3.0
+  description: An Example API designed for the skills workshop. Software Engineering UofG 2025 2810458H
+  version: 1.0.0
+  contact:
+    email: example@example.com
+
+servers:
+  - url: 'http://localhost:8080'
+    description: Local development server
+  - url: '/'
+    description: Default server
+
+tags:
+  - name: payments
+    description: Payment operations
+  - name: accounts
+    description: Account balance operations
+
+paths:
+  /api/payments:
+    post:
+      tags:
+        - payments
+      summary: Process a new payment
+      description: Process a peer-to-peer payment from one user to another. Includes balance check and fraud detection for amounts over $1000.
+      operationId: processPayment
+      requestBody:
+        description: Payment details
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+            examples:
+              smallPayment:
+                summary: Small payment (no fraud check)
+                value:
+                  fromUserId: "user123"
+                  toUserId: "user456"
+                  amount: 50.00
+              largePayment:
+                summary: Large payment (triggers fraud check)
+                value:
+                  fromUserId: "user123"
+                  toUserId: "user789"
+                  amount: 1500.00
+      responses:
+        '201':
+          description: Payment processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+              examples:
+                success:
+                  summary: Successful payment
+                  value:
+                    paymentId: "pay_a1b2c3d4e5f6"
+                    status: "COMPLETED"
+                    fromUserId: "user123"
+                    toUserId: "user456"
+                    amount: 50.00
+                    timestamp: "2025-01-15T14:30:00Z"
+                    fraudScore: null
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidAmount:
+                  summary: Invalid amount
+                  value:
+                    error: "BAD_REQUEST"
+                    message: "Amount must be greater than 0"
+                    timestamp: "2025-01-15T14:30:00Z"
+        '402':
+          description: Insufficient funds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                insufficientFunds:
+                  summary: Insufficient balance
+                  value:
+                    error: "INSUFFICIENT_FUNDS"
+                    message: "Sender balance (45.00) is less than payment amount (50.00)"
+                    timestamp: "2025-01-15T14:30:00Z"
+        '403':
+          description: Payment rejected due to fraud detection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                fraudRejection:
+                  summary: Fraud detected
+                  value:
+                    error: "FRAUD_DETECTED"
+                    message: "Payment rejected due to high fraud score (0.95)"
+                    timestamp: "2025-01-15T14:30:00Z"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/{paymentId}:
+    get:
+      tags:
+        - payments
+      summary: Get payment details
+      description: Retrieve details of an existing payment by its unique identifier
+      operationId: getPayment
+      parameters:
+        - name: paymentId
+          in: path
+          description: Unique payment identifier
+          required: true
+          schema:
+            type: string
+            example: "pay_a1b2c3d4e5f6"
+      responses:
+        '200':
+          description: Payment found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+              examples:
+                completedPayment:
+                  summary: Completed payment
+                  value:
+                    paymentId: "pay_a1b2c3d4e5f6"
+                    status: "COMPLETED"
+                    fromUserId: "user123"
+                    toUserId: "user456"
+                    amount: 50.00
+                    timestamp: "2025-01-15T14:30:00Z"
+                    fraudScore: null
+                rejectedPayment:
+                  summary: Rejected payment
+                  value:
+                    paymentId: "pay_x9y8z7w6v5u4"
+                    status: "REJECTED"
+                    fromUserId: "user123"
+                    toUserId: "user789"
+                    amount: 5000.00
+                    timestamp: "2025-01-15T14:35:00Z"
+                    fraudScore: 0.95
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  summary: Payment not found
+                  value:
+                    error: "NOT_FOUND"
+                    message: "Payment with ID 'pay_invalid123' not found"
+                    timestamp: "2025-01-15T14:30:00Z"
+
+  /api/accounts/{userId}/balance:
+    get:
+      tags:
+        - accounts
+      summary: Get account balance
+      description: Retrieve the current balance for a user account
+      operationId: getAccountBalance
+      parameters:
+        - name: userId
+          in: path
+          description: Unique user identifier
+          required: true
+          schema:
+            type: string
+            example: "user123"
+      responses:
+        '200':
+          description: Balance retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountBalanceResponse'
+              examples:
+                balance:
+                  summary: Account balance
+                  value:
+                    userId: "user123"
+                    balance: 1250.75
+                    currency: "USD"
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    PaymentRequest:
+      type: object
+      required:
+        - fromUserId
+        - toUserId
+        - amount
+      properties:
+        fromUserId:
+          type: string
+          description: User ID of the sender
+          example: "user123"
+        toUserId:
+          type: string
+          description: User ID of the recipient
+          example: "user456"
+        amount:
+          type: number
+          format: double
+          description: Payment amount in USD
+          minimum: 0.01
+          example: 50.00
+      example:
+        fromUserId: "user123"
+        toUserId: "user456"
+        amount: 50.00
+
+    PaymentResponse:
+      type: object
+      properties:
+        paymentId:
+          type: string
+          description: Unique payment identifier
+          example: "pay_a1b2c3d4e5f6"
+        status:
+          type: string
+          description: Payment status
+          enum:
+            - COMPLETED
+            - REJECTED
+            - PENDING
+          example: "COMPLETED"
+        fromUserId:
+          type: string
+          description: User ID of the sender
+          example: "user123"
+        toUserId:
+          type: string
+          description: User ID of the recipient
+          example: "user456"
+        amount:
+          type: number
+          format: double
+          description: Payment amount in USD
+          example: 50.00
+        timestamp:
+          type: string
+          format: date-time
+          description: Payment timestamp in ISO 8601 format
+          example: "2025-01-15T14:30:00Z"
+        fraudScore:
+          type: number
+          format: double
+          nullable: true
+          description: Fraud detection score (0.0 to 1.0). Only present for payments over $1000. Null if no fraud check was performed.
+          minimum: 0.0
+          maximum: 1.0
+          example: 0.45
+      example:
+        paymentId: "pay_a1b2c3d4e5f6"
+        status: "COMPLETED"
+        fromUserId: "user123"
+        toUserId: "user456"
+        amount: 50.00
+        timestamp: "2025-01-15T14:30:00Z"
+        fraudScore: null
+
+    AccountBalanceResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: User identifier
+          example: "user123"
+        balance:
+          type: number
+          format: double
+          description: Current account balance
+          example: 1250.75
+        currency:
+          type: string
+          description: Currency code
+          example: "USD"
+      example:
+        userId: "user123"
+        balance: 1250.75
+        currency: "USD"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+          enum:
+            - BAD_REQUEST
+            - INSUFFICIENT_FUNDS
+            - FRAUD_DETECTED
+            - NOT_FOUND
+            - INTERNAL_ERROR
+          example: "BAD_REQUEST"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Amount must be greater than 0"
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp in ISO 8601 format
+          example: "2025-01-15T14:30:00Z"
+      example:
+        error: "BAD_REQUEST"
+        message: "Amount must be greater than 0"
+        timestamp: "2025-01-15T14:30:00Z"
